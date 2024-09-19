@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>3D Car Driving Game with Textured Obstacles</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Use W/A/S/D or Arrow Keys to drive the car.</div>
+    <!-- Include Three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene, Camera, Renderer
+        var scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0xa0a0a0, 200, 1000);
+
+        var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 2000);
+        camera.position.set(0, 50, -100);
+
+        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0xa0a0a0);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        var hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444);
+        hemiLight.position.set(0, 200, 0);
+        scene.add(hemiLight);
+
+        var dirLight = new THREE.DirectionalLight(0xffffff);
+        dirLight.position.set(-0, 200, 100);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.top = 180;
+        dirLight.shadow.camera.bottom = -100;
+        dirLight.shadow.camera.left = -120;
+        dirLight.shadow.camera.right = 120;
+        scene.add(dirLight);
+
+        // Ground
+        var groundMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(2000, 2000),
+            new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false })
+        );
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
+
+        // Grid (Roads)
+        var gridHelper = new THREE.GridHelper(2000, 40, 0x000000, 0x000000);
+        gridHelper.position.y = 0.1;
+        scene.add(gridHelper);
+
+        // Road Texture
+        var roadTexture = new THREE.TextureLoader().load('https://i.imgur.com/6S7R15p.png');
+        roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping;
+        roadTexture.repeat.set(40, 40);
+        gridHelper.material = new THREE.MeshBasicMaterial({ map: roadTexture });
+
+        // Car
+        var car = new THREE.Group();
+
+        // Car Body
+        var bodyGeometry = new THREE.BoxGeometry(20, 10, 40);
+        var bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+        var carBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        carBody.castShadow = true;
+        carBody.receiveShadow = true;
+        car.add(carBody);
+
+        // Car Wheels
+        var wheelGeometry = new THREE.CylinderGeometry(5, 5, 2, 16);
+        var wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+        function createWheel(x, y, z) {
+            var wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.position.set(x, y, z);
+            wheel.castShadow = true;
+            wheel.receiveShadow = true;
+            car.add(wheel);
+        }
+        createWheel(-8, -5, 12);
+        createWheel(8, -5, 12);
+        createWheel(-8, -5, -12);
+        createWheel(8, -5, -12);
+
+        scene.add(car);
+
+        // Obstacles
+        var obstacles = [];
+
+        // **Add: Load the texture for obstacles**
+        var obstacleTexture = new THREE.TextureLoader().load('https://i.scdn.co/image/ab67616d00001e02dfd205682bd1b38b4fd8db52'); // Replace with your image URL
+
+        // **Modify: Create obstacle material with the texture**
+        var obstacleMaterial = new THREE.MeshPhongMaterial({ map: obstacleTexture });
+
+        // Obstacle Geometry
+        var obstacleGeometry = new THREE.BoxGeometry(20, 20, 20);
+
+        for (var i = 0; i < 50; i++) {
+            var obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+            obstacle.position.set(
+                (Math.random() - 0.5) * 1800,
+                10,
+                (Math.random() - 0.5) * 1800
+            );
+            obstacle.castShadow = true;
+            obstacle.receiveShadow = true;
+            scene.add(obstacle);
+            obstacles.push(obstacle);
+        }
+
+        // Controls
+        var moveForward = false;
+        var moveBackward = false;
+        var moveLeft = false;
+        var moveRight = false;
+
+        var speed = 0;
+        var maxSpeed = 200;
+        var acceleration = 300;
+        var deceleration = 400;
+        var turnSpeed = Math.PI; // radians per second
+
+        document.addEventListener('keydown', function(event) {
+            switch (event.keyCode) {
+                case 38: // up
+                case 87: // w
+                    moveForward = true;
+                    break;
+                case 37: // left
+                case 65: // a
+                    moveLeft = true;
+                    break;
+                case 40: // down
+                case 83: // s
+                    moveBackward = true;
+                    break;
+                case 39: // right
+                case 68: // d
+                    moveRight = true;
+                    break;
+            }
+        }, false);
+
+        document.addEventListener('keyup', function(event) {
+            switch (event.keyCode) {
+                case 38: // up
+                case 87: // w
+                    moveForward = false;
+                    break;
+                case 37: // left
+                case 65: // a
+                    moveLeft = false;
+                    break;
+                case 40: // down
+                case 83: // s
+                    moveBackward = false;
+                    break;
+                case 39: // right
+                case 68: // d
+                    moveRight = false;
+                    break;
+            }
+        }, false);
+
+        // Animation Loop
+        var prevTime = performance.now();
+        function animate() {
+            requestAnimationFrame(animate);
+
+            var time = performance.now();
+            var delta = (time - prevTime) / 1000;
+
+            // Handle acceleration and deceleration
+            if (moveForward) {
+                speed += acceleration * delta;
+            } else if (moveBackward) {
+                speed -= acceleration * delta;
+            } else {
+                // Apply natural deceleration
+                if (speed > 0) {
+                    speed -= deceleration * delta;
+                    if (speed < 0) speed = 0;
+                } else if (speed < 0) {
+                    speed += deceleration * delta;
+                    if (speed > 0) speed = 0;
+                }
+            }
+
+            // Limit speed
+            if (speed > maxSpeed) speed = maxSpeed;
+            if (speed < -maxSpeed / 2) speed = -maxSpeed / 2;
+
+            // Handle rotation
+            if (moveLeft) {
+                car.rotation.y += turnSpeed * delta * (speed / maxSpeed);
+            }
+            if (moveRight) {
+                car.rotation.y -= turnSpeed * delta * (speed / maxSpeed);
+            }
+
+            // Move car forward
+            car.translateZ(speed * delta);
+
+            // Collision detection with obstacles
+            var carBox = new THREE.Box3().setFromObject(car);
+            obstacles.forEach(function(obstacle) {
+                var obstacleBox = new THREE.Box3().setFromObject(obstacle);
+                if (carBox.intersectsBox(obstacleBox)) {
+                    // Simple collision response: stop the car and move it back slightly
+                    speed = 0;
+                    car.translateZ(-20);
+                }
+            });
+
+            // Camera follows the car
+            var relativeCameraOffset = new THREE.Vector3(0, 50, -100);
+            var cameraOffset = relativeCameraOffset.applyMatrix4(car.matrixWorld);
+
+            camera.position.lerp(cameraOffset, 0.1);
+            camera.lookAt(car.position);
+
+            renderer.render(scene, camera);
+            prevTime = time;
+        }
+
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+    </script>
+</body>
+</html>
